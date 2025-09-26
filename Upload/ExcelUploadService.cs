@@ -50,9 +50,14 @@ namespace FailReport.Upload
         {
             try
             {
-                // 生成唯一的文件名，避免覆盖
-                var fileName = $"{Guid.NewGuid().ToString().Substring(0, 8)}_{file.FileName}";// {Path.GetExtension(file.FileName)}
-                var filePath = Path.Combine(_uploadPath, fileName);
+                var fileName = file.FileName;
+                var filePath =  Path.Combine(@"C:\TE\N51876BTestApp\N51876BTestApp\Resources\", fileName);
+                // 文件类型若是.csv 
+                if (Path.GetExtension(file.FileName).ToLower() != ".csv")
+                {// 生成唯一的文件名，避免覆盖
+                    fileName = $"{Guid.NewGuid().ToString().Substring(0, 8)}_{file.FileName}";// {Path.GetExtension(file.FileName)}
+                    filePath = Path.Combine(_uploadPath, fileName);
+                }
 
                 // 保存文件到服务器
                 using (var stream = new FileStream(filePath, FileMode.Create))

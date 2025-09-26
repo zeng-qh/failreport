@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -31,8 +33,34 @@ namespace FailReport.Controllers
         {
             _uploadService = uploadService;
         }
- 
 
+        /// <summary>
+        /// 将发布目录打包为ZIP文件
+        /// </summary>
+        /// <param name="sourceDir">发布目录路径</param>
+        /// <param name="zipFilePath">ZIP文件保存路径</param>
+        /// <returns>是否打包成功</returns>
+        private bool ZipPublishDirectory(string sourceDir, string zipFilePath)
+        {
+            try
+            {
+                // 如果ZIP文件已存在则删除
+                if (System.IO.File.Exists(zipFilePath))
+                {
+                    System.IO.File.Delete(zipFilePath);
+                }
+
+                // 创建ZIP文件并添加目录内容
+                // 注意：第二个参数为""表示不包含根目录本身，只包含内部文件和子目录
+                ZipFile.CreateFromDirectory(sourceDir, zipFilePath, CompressionLevel.Optimal, includeBaseDirectory: false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"打包失败：{ex.Message}");
+                return false;
+            }
+        }
 
         /// <summary>
         /// 修改LogPath
@@ -343,69 +371,188 @@ namespace FailReport.Controllers
         [HttpPost("upload")]
         public async Task<IActionResult> UploadExcel(IFormFile file)
         {
-            // 检查文件是否为空
-            if (file == null || file.Length == 0)
+            try
             {
-                return BadRequest("请选择要上传的Excel文件");
-            }
 
-            // 检查文件类型
-            var allowedExtensions = new[] { ".xlsx", ".zip" };
-            var fileExtension = System.IO.Path.GetExtension(file.FileName).ToLower();
-            if (!allowedExtensions.Contains(fileExtension))
-            {
-                return BadRequest(new
+
+                // 检查文件是否为空
+                if (file == null || file.Length == 0)
                 {
-                    message = "只允许上传Excel文件(.xlsx)或压缩包(.zip)"
-                });
-            }
+                    return BadRequest("请选择要上传的Excel文件");
+                }
 
-            // 检查文件大小（限制为20MB）
-            if (file.Length > 20 * 1024 * 1024)
-            {
-
-                return Ok(new
+                // 检查文件类型
+                var allowedExtensions = new[] { ".xlsx", ".zip", ".csv" };
+                var fileExtension = System.IO.Path.GetExtension(file.FileName).ToLower();
+                if (!allowedExtensions.Contains(fileExtension))
                 {
-                    message = "文件大小超过限制（20MB）",
-                    fileName = file.FileName,
-                    fileSize = file.Length / 1024 + " KB"
-                });
-            }
+                    return BadRequest(new
+                    {
+                        message = "只允许上传Excel文件(.xlsx)或压缩包(.zip)"
+                    });
+                }
 
-            // 调用服务上传文件
-            var result = await _uploadService.SaveExcelFileAsync(file);
-
-            if (result.Success)
-            {
-                Stopwatch Ps = Stopwatch.StartNew();
-                // 若是Excel文件，则读取数据，zip文件则解压缩 
-                if (result.FilePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                // 检查文件大小（限制为20MB）
+                if (file.Length > 20 * 1024 * 1024)
                 {
-                    await _uploadService.ReadExcelData2Txt(result.FilePath);
-                    Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+
+                    return Ok(new
+                    {
+                        message = "文件大小超过限制（20MB）",
+                        fileName = file.FileName,
+                        fileSize = file.Length / 1024 + " KB"
+                    });
+                }
+
+                // 调用服务上传文件
+                var result = await _uploadService.SaveExcelFileAsync(file);
+
+                if (result.Success)
+                {
+                    Stopwatch Ps = Stopwatch.StartNew();
+                    // 若是Excel文件，则读取数据，zip文件则解压缩 
+                    if (result.FilePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _uploadService.ReadExcelData2Txt(result.FilePath);
+                        Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+                    }
+                    else if (result.FilePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && result.FilePath.IndexOf("ModelConfig.csv") != -1)
+                    {
+                        // 运行命令行进行发布 
+
+
+                        // dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+                        string projectPath = @"C:\TE\N51876BTestApp\"; // 项目文件路径
+                        string outputPath = Path.Combine("C:\\TE", "publish"); // 输出目录
+
+                        // 构建dotnet publish命令参数
+                        string arguments = $"publish " +
+                                          $"-c Release " +
+                                          $"-r win-x64 " +
+                                          $"--self-contained true " +
+                                          $"-p:PublishSingleFile=true " +
+                                          $"-p:IncludeNativeLibrariesForSelfExtract=true " +
+                                          $"-o \"{outputPath}\"";
+
+                        // 配置进程信息
+                        ProcessStartInfo startInfo = new ProcessStartInfo
+                        {
+                            FileName = "dotnet", // 调用dotnet CLI
+                            Arguments = arguments,
+                            WorkingDirectory = Path.GetDirectoryName(projectPath), // 项目所在目录
+                            RedirectStandardOutput = true, // 捕获输出
+                            RedirectStandardError = true,  // 捕获错误
+                            UseShellExecute = false,       // 不使用shell
+                            CreateNoWindow = true,     // 不显示命令窗口
+                                                       // 关键：设置输出编码为 UTF-8
+                            StandardOutputEncoding = System.Text.Encoding.UTF8,
+                            StandardErrorEncoding = System.Text.Encoding.UTF8
+                        };
+                        UpdateLog();
+                        // 执行命令
+                        using (Process process = Process.Start(startInfo))
+                        {
+                            if (process == null)
+                            {
+                                //return "发布失败：无法启动dotnet进程";
+                            }
+
+                            // 读取输出和错误信息
+                            string output = process.StandardOutput.ReadToEnd();
+                            string error = process.StandardError.ReadToEnd();
+                            process.WaitForExit(5000);
+
+                            // 返回执行结果
+                            if (process.ExitCode == 0)
+                            {
+                                //return $"发布成功！输出目录：{outputPath}\n{output}";
+                                // 返回给用户指定的二进制文件
+                                return Ok(new
+                                {
+                                    message = output,
+                                    filefullPath = result.FilePath,
+                                    fileName = System.IO.Path.GetFileName(result.FilePath),
+                                    filePath = result.FilePath.Substring(0, result.FilePath.LastIndexOf('\\')),
+                                    // 不要文件后缀名
+                                    Select = System.IO.Path.GetFileNameWithoutExtension(result.FilePath)
+                                });
+                            }
+                            else
+                            {
+                                //return $"发布失败（代码：{process.ExitCode}）\n错误信息：{error}\n输出：{output}";
+                            }
+                        }
+                    }
+                    else if (result.FilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // 如果是zip文件，则解压缩
+                        await _uploadService.UnZipFile(result.FilePath);
+                        Debug.WriteLine($"解压缩文件耗时: {Ps.ElapsedMilliseconds} ms");
+                    }
+
+                    return Ok(new
+                    {
+                        message = "文件上传成功",
+                        filefullPath = result.FilePath,
+                        fileName = System.IO.Path.GetFileName(result.FilePath),
+                        filePath = result.FilePath.Substring(0, result.FilePath.LastIndexOf('\\')),
+                        // 不要文件后缀名
+                        Select = System.IO.Path.GetFileNameWithoutExtension(result.FilePath)
+                    });
                 }
                 else
                 {
-                    // 如果是zip文件，则解压缩
-                    await _uploadService.UnZipFile(result.FilePath);
-                    Debug.WriteLine($"解压缩文件耗时: {Ps.ElapsedMilliseconds} ms");
+                    return StatusCode(500, new { message = "文件上传失败", error = result.ErrorMessage });
                 }
-
-                return Ok(new
-                {
-                    message = "文件上传成功",
-                    filefullPath = result.FilePath,
-                    fileName = System.IO.Path.GetFileName(result.FilePath),
-                    filePath = result.FilePath.Substring(0, result.FilePath.LastIndexOf('\\')),
-                    // 不要文件后缀名
-                    Select = System.IO.Path.GetFileNameWithoutExtension(result.FilePath)
-                });
             }
-            else
+            catch (Exception ex)
             {
-                return StatusCode(500, new { message = "文件上传失败", error = result.ErrorMessage });
+
+                System.IO.File.AppendAllText("C:\\TE\\FailReport_ErrorLog.txt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\t" + ex.Message + "\n");
+                return StatusCode(500, new { message = "文件上传过程中发生异常", error = ex.Message });
             }
         }
+
+        // 返回编译后的二进制文件
+        [HttpGet]
+        public IActionResult DownloadPublishedFile()
+        {
+            string outputPath = Path.Combine("C:\\TE", "publish"); // 输出目录
+            string exeFilePath = Path.Combine(outputPath, "N51876BTestApp.exe");
+            byte[] fileBytes = System.IO.File.ReadAllBytes(exeFilePath);
+            return File(fileBytes, "application/octet-stream", "N51876BTestApp.exe");
+        }
+
+        private void UpdateLog()
+        {
+            string filePath = "C:\\TE\\N51876BTestApp\\N51876BTestApp\\Form2.Designer.cs";
+
+            // 读取文件内容
+            string oregon = System.IO.File.ReadAllText(filePath);
+
+            // 正则表达式：匹配 Text = "Vx.y.z"; 格式，捕获主版本、次版本、修订号
+            string pattern = @"Text\s*=\s*""V(\d+)\.(\d+)\.(\d+)"";";
+
+            // 替换回调：递增修订号（最后一段）
+            string updatedContent = Regex.Replace(oregon, pattern, match =>
+            {
+                // 捕获组1：主版本（如1），组2：次版本（如4），组3：修订号（如1）
+                int major = int.Parse(match.Groups[1].Value);
+                int minor = int.Parse(match.Groups[2].Value);
+                int patch = int.Parse(match.Groups[3].Value);
+
+                // 修订号加1（如1 → 2）
+                patch++;
+
+                // 重构版本号字符串
+                return $"Text = \"V{major}.{minor}.{patch}\";";
+            });
+
+            // 将修改后的内容写回文件
+            System.IO.File.WriteAllText(filePath, updatedContent);
+            Console.WriteLine("版本号已更新");
+        }
+
     }
 
 
@@ -421,7 +568,7 @@ namespace FailReport.Controllers
     public class FailList
     {
         //   public int FailCount { get; set { if (value < 0) { throw new ArgumentOutOfRangeException("FailCount", "不能设置负数"); } else { FailCount = value; } } }
-     
+
         public List<FailData> Data { get; set; }
 
         public string StrMes { get; set; }

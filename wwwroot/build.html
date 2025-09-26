@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FailReport</title>
+    <script src="./Static/js/vue.global.js"></script>
+    <!-- element-plus -->
+    <link rel="stylesheet" href="./Static/css/index.css">
+    <script src="./Static/js/index.full.js"></script>
+    <script src="./Static/js/Icons/index.iife.js"></script>
+    <script src="./Static/js/zh-cn.js"></script>
+    <script src="./Static/js/jquery.js"></script>
+    <script src="./Static/js/echarts.js"></script>
+    <script src="./Static/js/dayjs.min.js"></script>
+
+    <link href="./Static/img/favicon32.ico" rel="shortcut icon" type="image/x-icon">
+    <!-- clipboard -->
+
+    <script src="./Static/js/clipboard.js"></script>
+    <!--
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.js"></script>
+    <link href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.css" rel="stylesheet">
+    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.full.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/locale/zh-cn.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/clipboard.js/2.0.11/clipboard.js"></script> -->
+    <script>
+        // 存储原始传入的名称
+        let pkg_name_origin = null;
+        const npmInstall = (originName) => {
+            // Trim string
+            const name = originName.trim();
+            pkg_name_origin = name;
+            // 三种引入方式
+            // 如果是一个有效的URL，直接通过<script />标签插入
+            if (/^https?:\/\//.test(name)) return injectScript(name);
+            // 如果指定了版本，尝试使用unpkg加载
+            if (name.indexOf('@') !== -1) return unpkg(name);
+            // 否则，尝试使用cdnjs搜索
+            return cdnjs(name);
+        };
+
+        // 在页面中插入<script />标签
+        const injectScript = (url) => {
+            const script = document.createElement('script');
+            script.src = url;
+            script.onload = () => {
+                console.log(pkg_name_origin, ' 安装成功。');
+            };
+            script.onerror = () => {
+                console.log(pkg_name_origin, ' 安装失败。');
+            };
+            document.body.appendChild(script);
+            // document.body.removeChild(script);
+        };
+
+        const unpkg = (name) => {
+            injectScript(`https://unpkg.com/${name}`);
+        };
+
+        const cdnjs = async (name) => {
+            const searchPromise = await fetch(
+                `https://api.cdnjs.com/libraries?search=${name}`,
+                // 不显示referrer的任何信息在请求头中
+                { referrerPolicy: 'no-referrer' }
+            );
+            const { results, total } = await searchPromise.json();
+            if (total === 0) {
+                console.error('Sorry, ', name, ' not found, please try another keyword.');
+                return;
+            }
+
+            // 取结果中最相关的一条
+            const { name: exactName, latest: url } = results[0];
+            if (name !== exactName) {
+                console.log(name, ' not found, import ', exactName, ' instead.');
+            }
+            // 通过<script />标签插入
+            injectScript(url);
+        };
+    </script>
+
+
+
+
+</head>
+
+
+<body>
+    <div id="app">
+
+        <div>
+            <div :class="UrlPath.upload_url">
+
+                <el-upload style="height: 180px;" drag limit="1" accept=".csv" :on-success="uploadSuccess"
+                    :disabled="isUploading" :before-upload="beforeUpload" :action="UrlPath.upload_url" :multiple="false"
+                    :file-list="uploadedFiles">
+                    <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                    <div class="el-upload__text">
+                        拖拽文件到此处或 <em>点击上传</em>
+                    </div>
+                    <template #tip>
+                        <div class="el-upload__tip">
+                            小于20M的csv文件
+                        </div>
+                    </template>
+                </el-upload>
+            </div>
+        </div>
+
+
+    </div>
+</body>
+<style>
+
+</style>
+<script>
+
+    // var UrlBase = "https://localhost:5001/api"
+    const UrlBase = (location.origin == "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api"
+
+    const { createApp, reactive, ref, toRaw } = Vue
+
+    // reactive(message)
+
+
+    // 在需要的地方使用myElement引用
+    const App = createApp({
+        setup() {
+            // const value1 = ref('')
+
+        },
+        data() {
+            return {
+                UrlPath: {
+                    GetAllFail: UrlBase + "/FailReport/GetAllFail?Path=",
+                    GetLogDirectorys: UrlBase + "/FailReport/GetLogDirectorys",
+                    GetFailData: UrlBase + "/FailReport/GetFailData",
+                    OpenFileDirectory: UrlBase + "/FailReport/OpenFileDirectory?Path=",
+                    SetLogsPath_Server: UrlBase + "/FailReport/SetLogsPath?Path=",
+                    upload_url: UrlBase + "/FailReport/UploadExcel/upload",
+                    DownloadPublishedFile: UrlBase + "/FailReport/DownloadPublishedFile",
+                }
+                ,
+                uploadedFiles: [], // 用于存储已上传文件信息
+                isUploading: false,
+                IsClosePanel: false,
+                allowedExts:['.csv'],
+            }
+        },
+        methods: {
+            beforeUpload(file) {
+                this.isUploading = true;
+                // 获取文件后缀名
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                // 允许的文件类型 
+
+                if (!this.allowedExts.includes(fileExt)) {
+                    this.$message.error('仅支持上传.csv格式的文件，请重新选择！');
+                    this.isUploading = false;
+                    return false;
+                }
+                // 文件大小校验
+                // console.error(file)
+                const fileSize = file.size / 1024 / 1024; // 转换为MB
+                if (fileSize > 20) {
+                    this.$message.error('文件大小不能超过20MB，请重新选择！');
+                    this.isUploading = false;
+                    return false;
+                }
+
+                return true;
+            },
+            uploadSuccess(data) {
+                this.uploadedFiles = []; // 清空已上传的文件列表
+                console.error(data); // 上传成功后返回的数据
+                /*    this.SetLogsPath(data.filePath)*/
+                var _this = this;
+                var _window = window;
+                const loading = ElementPlus.ElLoading.service({
+                    lock: true,
+                    text: 'Loading',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                })
+                setTimeout(() => {
+                    // 点击确定后刷新页面
+                    ElementPlus.ElMessageBox({
+                        title: '上传成功！',
+                        // mes 提示为超链接 <a>标签
+                        message: `<a href='${UrlPath.DownloadPublishedFile}' style="color:blue;" >点击下载</a>`,
+                        type: 'success',
+                        dangerouslyUseHTMLString: true
+                    }).then(() => {
+                        // 等待3秒后刷新页面
+                        //_this.SelectValue = _this.LogsPath + "\\" + data.select;
+                        loading.close();
+                        // 点击确认后下载二进制文件
+                        //console.error(UrlPath.DownloadPublishedFile);
+                        //_window.location(UrlPath.DownloadPublishedFile);
+
+
+                        this.isUploading = false;
+
+                        //_this.GetAllFail(_this.SelectValue)
+                        // location.reload();
+                    }).catch(() => {
+                        loading.close();
+                    });
+                }, 3000);
+                // this.$message.success('上传成功');
+            },
+            openFullScreen() {
+                const loading = ElementPlus.ElLoading.service({
+                    lock: true,
+                    text: 'Loading',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                })
+                setTimeout(() => {
+                    loading.close()
+                }, 200)
+            },
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            },
+            filterMethod(query, item) {
+                if (query) {
+                    return toRaw(item.label).toLowerCase().includes(query.toLowerCase())
+                }
+                return item;
+            },
+
+
+
+
+
+        },
+
+        // 初始化后调用Get方法
+        created() {
+
+        },
+        mounted() {
+
+
+        },
+        watch() {
+
+        }
+
+
+
+    })
+    //   注册所有图标组件 (这是独立的操作)
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            App.component(key, component);
+        }
+        // console.log("图标已成功注册！");
+    }
+    App.config.globalProperties.$message = ElementPlus.ElMessage; // 全局注册
+
+    App.use(ElementPlus, {
+        locale: ElementPlusLocaleZhCn,
+    }).mount('#app')
+
+    // "2023-11-11T17:03:29.6729195+08:00" 转换为 yyyy-MM-dd HH:mm:ss 格式
+    // console.dir(dayjs("2023-11-11T17:03:29.6729195+08:00").format('YYYY-MM-DD HH:mm:ss'))
+
+</script>
+
+
+
+</html>
