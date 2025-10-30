@@ -369,7 +369,7 @@ namespace FailReport.Controllers
         /// <param name="file">要上传的Excel文件</param>
         /// <returns>上传结果</returns>
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadExcel(IFormFile file)
+        public async Task<IActionResult> UploadExcel(IFormFile file, [FromForm] string? Type)
         {
             try
             {
@@ -409,87 +409,108 @@ namespace FailReport.Controllers
 
                 if (result.Success)
                 {
-                    Stopwatch Ps = Stopwatch.StartNew();
-                    // 若是Excel文件，则读取数据，zip文件则解压缩 
-                    if (result.FilePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+                    if (Type == "FCT" || Type == "ICT")
                     {
-                        await _uploadService.ReadExcelData2Txt(result.FilePath);
-                        Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+                        string res = await _uploadService.ReadExcelData2Csv(result.FilePath, Type);
+                        if (res != null)
+                        {
+
+                            return Ok(new
+                            {
+                                message = res.Split(">")[0],
+                                filefullPath = res.Split(">")[1].Trim(),
+                            });
+                        }
+                        else
+                        {
+                            return StatusCode(500, new { message = "文件上传失败", error = "转换CSV文件失败" });
+                        }
+
                     }
-                    else if (result.FilePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && result.FilePath.IndexOf("ModelConfig.csv") != -1)
+                    else
                     {
-                        // 运行命令行进行发布 
 
-
-                        // dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
-                        string projectPath = @"C:\TE\N51876BTestApp\"; // 项目文件路径
-                        string outputPath = Path.Combine("C:\\TE", "publish"); // 输出目录
-
-                        // 构建dotnet publish命令参数
-                        string arguments = $"publish " +
-                                          $"-c Release " +
-                                          $"-r win-x64 " +
-                                          $"--self-contained true " +
-                                          $"-p:PublishSingleFile=true " +
-                                          $"-p:IncludeNativeLibrariesForSelfExtract=true " +
-                                          $"-o \"{outputPath}\"";
-
-                        // 配置进程信息
-                        ProcessStartInfo startInfo = new ProcessStartInfo
+                        Stopwatch Ps = Stopwatch.StartNew();
+                        // 若是Excel文件，则读取数据，zip文件则解压缩 
+                        if (result.FilePath.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
                         {
-                            FileName = "dotnet", // 调用dotnet CLI
-                            Arguments = arguments,
-                            WorkingDirectory = Path.GetDirectoryName(projectPath), // 项目所在目录
-                            RedirectStandardOutput = true, // 捕获输出
-                            RedirectStandardError = true,  // 捕获错误
-                            UseShellExecute = false,       // 不使用shell
-                            CreateNoWindow = true,     // 不显示命令窗口
-                                                       // 关键：设置输出编码为 UTF-8
-                            StandardOutputEncoding = System.Text.Encoding.UTF8,
-                            StandardErrorEncoding = System.Text.Encoding.UTF8
-                        };
-                        UpdateLog();
-                        // 执行命令
-                        using (Process process = Process.Start(startInfo))
+                            await _uploadService.ReadExcelData2Txt(result.FilePath);
+                            Debug.WriteLine($"读取Excel数据耗时: {Ps.ElapsedMilliseconds} ms");
+                        }
+                        else if (result.FilePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) && result.FilePath.IndexOf("ModelConfig.csv") != -1)
                         {
-                            if (process == null)
-                            {
-                                //return "发布失败：无法启动dotnet进程";
-                            }
+                            // 运行命令行进行发布 
 
-                            // 读取输出和错误信息
-                            string output = process.StandardOutput.ReadToEnd();
-                            string error = process.StandardError.ReadToEnd();
-                            process.WaitForExit(5000);
 
-                            // 返回执行结果
-                            if (process.ExitCode == 0)
+                            // dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+                            string projectPath = @"C:\TE\N51876BTestApp\"; // 项目文件路径
+                            string outputPath = Path.Combine("C:\\TE", "publish"); // 输出目录
+
+                            // 构建dotnet publish命令参数
+                            string arguments = $"publish " +
+                                              $"-c Release " +
+                                              $"-r win-x64 " +
+                                              $"--self-contained true " +
+                                              $"-p:PublishSingleFile=true " +
+                                              $"-p:IncludeNativeLibrariesForSelfExtract=true " +
+                                              $"-o \"{outputPath}\"";
+
+                            // 配置进程信息
+                            ProcessStartInfo startInfo = new ProcessStartInfo
                             {
-                                //return $"发布成功！输出目录：{outputPath}\n{output}";
-                                // 返回给用户指定的二进制文件
-                                return Ok(new
+                                FileName = "dotnet", // 调用dotnet CLI
+                                Arguments = arguments,
+                                WorkingDirectory = Path.GetDirectoryName(projectPath), // 项目所在目录
+                                RedirectStandardOutput = true, // 捕获输出
+                                RedirectStandardError = true,  // 捕获错误
+                                UseShellExecute = false,       // 不使用shell
+                                CreateNoWindow = true,     // 不显示命令窗口
+                                                           // 关键：设置输出编码为 UTF-8
+                                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                                StandardErrorEncoding = System.Text.Encoding.UTF8
+                            };
+                            UpdateLog();
+                            // 执行命令
+                            using (Process process = Process.Start(startInfo))
+                            {
+                                if (process == null)
                                 {
-                                    message = output,
-                                    filefullPath = result.FilePath,
-                                    fileName = System.IO.Path.GetFileName(result.FilePath),
-                                    filePath = result.FilePath.Substring(0, result.FilePath.LastIndexOf('\\')),
-                                    // 不要文件后缀名
-                                    Select = System.IO.Path.GetFileNameWithoutExtension(result.FilePath)
-                                });
-                            }
-                            else
-                            {
-                                //return $"发布失败（代码：{process.ExitCode}）\n错误信息：{error}\n输出：{output}";
+                                    //return "发布失败：无法启动dotnet进程";
+                                }
+
+                                // 读取输出和错误信息
+                                string output = process.StandardOutput.ReadToEnd();
+                                string error = process.StandardError.ReadToEnd();
+                                process.WaitForExit(5000);
+
+                                // 返回执行结果
+                                if (process.ExitCode == 0)
+                                {
+                                    //return $"发布成功！输出目录：{outputPath}\n{output}";
+                                    // 返回给用户指定的二进制文件
+                                    return Ok(new
+                                    {
+                                        message = output,
+                                        filefullPath = result.FilePath,
+                                        fileName = System.IO.Path.GetFileName(result.FilePath),
+                                        filePath = result.FilePath.Substring(0, result.FilePath.LastIndexOf('\\')),
+                                        // 不要文件后缀名
+                                        Select = System.IO.Path.GetFileNameWithoutExtension(result.FilePath)
+                                    });
+                                }
+                                else
+                                {
+                                    //return $"发布失败（代码：{process.ExitCode}）\n错误信息：{error}\n输出：{output}";
+                                }
                             }
                         }
+                        else if (result.FilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // 如果是zip文件，则解压缩
+                            await _uploadService.UnZipFile(result.FilePath);
+                            Debug.WriteLine($"解压缩文件耗时: {Ps.ElapsedMilliseconds} ms");
+                        }
                     }
-                    else if (result.FilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // 如果是zip文件，则解压缩
-                        await _uploadService.UnZipFile(result.FilePath);
-                        Debug.WriteLine($"解压缩文件耗时: {Ps.ElapsedMilliseconds} ms");
-                    }
-
                     return Ok(new
                     {
                         message = "文件上传成功",
@@ -521,6 +542,33 @@ namespace FailReport.Controllers
             string exeFilePath = Path.Combine(outputPath, "N51876BTestApp.exe");
             byte[] fileBytes = System.IO.File.ReadAllBytes(exeFilePath);
             return File(fileBytes, "application/octet-stream", "N51876BTestApp.exe");
+        }
+
+        [HttpGet]
+        public IActionResult DownloadCsvDataFile(string FilePath)
+        {
+            if (FilePath.Contains("TE") && FilePath.EndsWith(".csv", StringComparison.InvariantCultureIgnoreCase))
+            {
+                if (System.IO.File.Exists(FilePath))
+                {
+                    //"C:\Logs_Uploads\5f89991f_1_ICT原始数据.xlsx"
+                    // 获取文件名称不要路径
+                    string fileName = System.IO.Path.GetFileName(FilePath);
+
+                    byte[] fileBytes = System.IO.File.ReadAllBytes(FilePath);
+
+                    return File(fileBytes, "application/octet-stream", fileName);
+                }
+                else
+                {
+                    return BadRequest("文件不存在");
+                }
+
+            }
+            else
+            {
+                return BadRequest("文件路径不合法");
+            }
         }
 
         private void UpdateLog()

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCT/ICT数据转换工具</title>
+    <script src="./Static/js/vue.global.js"></script>
+    <!-- element-plus -->
+    <link rel="stylesheet" href="./Static/css/index.css">
+    <script src="./Static/js/index.full.js"></script>
+    <script src="./Static/js/Icons/index.iife.js"></script>
+    <script src="./Static/js/zh-cn.js"></script>
+    <script src="./Static/js/jquery.js"></script>
+    <script src="./Static/js/echarts.js"></script>
+    <script src="./Static/js/dayjs.min.js"></script>
+    <link href="./Static/img/favicon32.ico" rel="shortcut icon" type="image/x-icon">
+    <!-- clipboard -->
+    <script src="./Static/js/clipboard.js"></script>
+
+    <style>
+        /* 全局样式重置与基础配置 */
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        /* 卡片容器样式 */
+        .conversion-card {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+        }
+        /* 模式切换区样式 */
+        .mode-switch-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #eef1f5;
+        }
+
+        .mode-desc {
+            font-size: 14px;
+            color: #606266;
+        }
+
+        .mode-tag {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #e6f4ff;
+            color: #1d5dcb;
+            margin-left: 8px;
+        }
+        /* 上传区样式优化 */
+        .upload-area {
+            height: 220px !important;
+            border: 2px dashed #c0c4cc;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+            .upload-area:hover {
+                border-color: #1d5dcb;
+                background-color: #f9fafc;
+            }
+
+        .el-upload__icon {
+            font-size: 48px !important;
+            color: #86909c !important;
+        }
+
+        .el-upload__text {
+            font-size: 14px !important;
+            color: #606266 !important;
+            margin-top: 16px !important;
+        }
+
+            .el-upload__text em {
+                color: #1d5dcb !important;
+                cursor: pointer;
+            }
+        /* 上传提示样式 */
+        .upload-tip {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #909399;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        /* 已上传文件列表样式 */
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #f9fafc;
+            border-radius: 4px;
+            margin-top: 12px;
+        }
+
+        .file-name {
+            font-size: 13px;
+            color: #606266;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 280px;
+        }
+        /* 成功面板样式 */
+        .success-panel {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f0f9eb;
+            border-radius: 6px;
+            border: 1px solid #e1f3d8;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .success-icon {
+            color: #52c41a;
+            font-size: 20px;
+        }
+
+        .success-text {
+            font-size: 14px;
+            color: #13ce66;
+            flex: 1;
+        }
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .mode-switch-wrapper {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .file-name {
+                max-width: 180px;
+            }
+
+            .conversion-card {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 核心卡片容器：规整内容，提升层次感 -->
+        <div class="conversion-card">
+            <!-- 1. 模式切换区：明确用途，增加说明 -->
+            <div class="mode-switch-wrapper">
+                <span class="mode-desc">
+                    转换模式：
+                    <span class="mode-tag">{{ IsFCT ? 'FCT测试数据' : 'ICT测试数据' }}</span>
+                </span>
+                <el-switch v-model="IsFCT"
+                           inline-prompt
+                           style="--el-switch-on-color: #1d5dcb; --el-switch-off-color: #77ce13; font-weight: 500;"
+                           active-text="FCT"
+                           inactive-text="ICT"></el-switch>
+                <span style="color:red">请确认原始数据的类型(FCT或ICT)，若类型错误可能转换出错!</span>
+            </div>
+
+            <!-- 2. 文件上传区：优化样式，增加状态反馈 -->
+            <el-upload class="upload-area"
+                       drag
+                       limit="1"
+                       accept=".xlsx"
+                       :on-success="uploadSuccess"
+                       :on-error="uploadError"
+                       :on-remove="handleFileRemove"
+                       :data="({ Type: IsFCT ? 'FCT' : 'ICT' })"
+                       :disabled="isUploading"
+                       :before-upload="beforeUpload"
+                       :action="UrlPath.upload_url"
+                       :multiple="false"
+                       :file-list="uploadedFiles">
+                <!-- 上传中：显示加载图标，替代静态图标 -->
+                <template #default>
+                    <el-icon class="el-upload__icon">
+                        <upload-filled v-if="!isUploading" />
+                        <loading v-else />
+                    </el-icon>
+                    <div class="el-upload__text">
+                        拖拽.xlsx文件到此处<br>或 <em>点击上传</em>
+                    </div>
+                </template>
+
+                <!-- 上传进度：新增进度条，让用户感知处理状态 -->
+                <template #uploading>
+                    <el-progress :percentage="uploadProgress"
+                                 stroke-width="3"
+                                 style="width: 80%; margin: 30px auto 10px;"
+                                 color="#1d5dcb"></el-progress>
+                    <p style="text-align: center; font-size: 13px; color: #606266;">
+                        正在处理数据（{{ uploadProgress }}%）...
+                    </p>
+                </template>
+
+                <!-- 上传提示：补充图标，更直观 -->
+                <template #tip>
+                    <div class="upload-tip">
+                        <el-icon size="14"><info-filled /></el-icon>
+                        支持格式：.xlsx（单个文件最大20MB），仅支持Excel表格数据转换
+                    </div>
+                </template>
+
+                <!-- 已上传文件：自定义样式，显示文件名+删除按钮 -->
+                <template #file="{ file }">
+                    <div class="file-item">
+                        <span class="file-name">{{ file.name }}</span>
+                        <el-button icon="delete"
+                                   size="mini"
+                                   type="text"
+                                   @click.stop="handleFileRemove(file)"
+                                   style="color: #f56c6c;"></el-button>
+                    </div>
+                </template>
+            </el-upload>
+
+            <!-- 3. 上传成功面板：保留下载入口，避免弹窗关闭后无法下载 -->
+            <div v-if="showSuccessPanel" class="success-panel">
+                <el-icon class="success-icon"><check-circle-filled /></el-icon>
+                <div class="success-text">数据转换完成！可点击按钮下载结果文件</div>
+                <el-button type="primary"
+                           size="small"
+                           @click="handleDownload"
+                           icon="download">
+                    下载转换文件
+                </el-button>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    // 基础URL配置：修复原逻辑，确保接口地址正确
+    const UrlBase = (location.origin === "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api";
+
+    const { createApp, reactive, ref, toRaw } = Vue;
+
+    const App = createApp({
+        data() {
+            return {
+                UrlPath: {
+                    GetAllFail: `${UrlBase}/FailReport/GetAllFail?Path=`,
+                    GetLogDirectorys: `${UrlBase}/FailReport/GetLogDirectorys`,
+                    GetFailData: `${UrlBase}/FailReport/GetFailData`,
+                    OpenFileDirectory: `${UrlBase}/FailReport/OpenFileDirectory?Path=`,
+                    SetLogsPath_Server: `${UrlBase}/FailReport/SetLogsPath?Path=`,
+                    upload_url: `${UrlBase}/FailReport/UploadExcel/upload`, // 接口地址正确绑定
+                    DownloadCsvDataFile: `${UrlBase}/FailReport/DownloadCsvDataFile`,
+                },
+                uploadedFiles: [], // 已上传文件列表
+                isUploading: false, // 上传状态
+                uploadProgress: 0, // 上传/处理进度
+                showSuccessPanel: false, // 成功面板显示状态
+                downloadFileUrl: "", // 下载文件地址
+                IsFCT: true, // 转换模式：true=FCT，false=ICT
+                excelAllowedExts: ['xlsx'], // 允许的Excel格式
+            };
+        },
+        methods: {
+            // 上传前校验：优化提示文案，增加图标
+            beforeUpload(file) {
+                this.isUploading = true;
+                this.uploadProgress = 0; // 重置进度
+                this.showSuccessPanel = false; // 隐藏成功面板
+
+                // 1. 格式校验
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                if (!this.excelAllowedExts.includes(fileExt)) {
+                    this.$message({
+                        type: 'error',
+                        message: '仅支持上传.xlsx格式的Excel文件，请重新选择！',
+                        icon: 'warning-filled'
+                    });
+                    this.isUploading = false;
+                    return false;
+                }
+
+                // 2. 大小校验
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                if (fileSize > 20) {
+                    this.$message({
+                        type: 'error',
+                        message: `文件大小超出限制（当前${fileSize}MB，最大支持20MB），请压缩或拆分文件！`,
+                        icon: 'warning-filled'
+                    });
+                    this.isUploading = false;
+                    return false;
+                }
+
+                // 模拟初始进度（实际可根据接口实时返回进度调整）
+                this.simulateProgress();
+                return true;
+            },
+
+            // 模拟进度：提升用户感知（实际项目可替换为接口实时进度）
+            simulateProgress() {
+                const timer = setInterval(() => {
+                    if (this.uploadProgress < 90) {
+                        this.uploadProgress += Math.floor(Math.random() * 10);
+                    } else {
+                        clearInterval(timer);
+                    }
+                }, 500);
+            },
+
+            // 上传成功：优化逻辑，完善状态管理
+            uploadSuccess(data) {
+                this.uploadedFiles = []; // 清空文件列表
+                this.uploadProgress = 100; // 进度置为100%
+                this.downloadFileUrl = `${this.UrlPath.DownloadCsvDataFile}?FilePath=${data.filefullPath}`;
+
+                const _this = this;
+                const loading = ElementPlus.ElLoading.service({
+                    lock: true,
+                    text: '正在准备下载文件...',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                });
+
+                let msg = `<a href="${_this.downloadFileUrl}" style="color:#1d5dcb; text-decoration:underline;" target="_blank">点击此处下载处理后的文件</a>`
+                let tp = 'success';
+                let btntxt = '下载'
+                let showPanel = true;
+                if (data.message.includes("失败")) {
+                    msg = "转换失败，请确认上传文件是否正确，选择确认需要转换的文件类型是否正确！"
+                    tp = 'error'
+                    btntxt = '关闭'
+                    showPanel = false;
+                }
+                // 延迟弹窗：确保后台文件生成完成
+                setTimeout(() => {
+                    loading.close();
+                    ElementPlus.ElMessageBox({
+                        title: data.message,
+                        message: msg,
+                        type: tp,
+                        dangerouslyUseHTMLString: true,
+                        confirmButtonText: btntxt,
+                        confirmButtonColor: '#1d5dcb'
+                    }).then(() => {
+                        this.isUploading = false;
+                        this.showSuccessPanel = showPanel; // 显示成功面板，保留下载入口
+                        // 自动触发一次下载
+                        if (showPanel) {
+                            this.handleDownload();
+                        }
+                    }).catch(() => {
+                        this.isUploading = false;
+                        this.showSuccessPanel = showPanel;
+                    });
+                }, 1500);
+            },
+
+            // 上传失败：补充错误提示
+            uploadError(err) {
+                this.isUploading = false;
+                this.uploadProgress = 0;
+                this.$message({
+                    type: 'error',
+                    message: '文件上传失败，请检查网络或文件完整性后重试！',
+                    icon: 'error-filled'
+                });
+                console.error('上传错误详情：', err);
+            },
+
+            // 删除已上传文件
+            handleFileRemove(file) {
+                this.uploadedFiles = this.uploadedFiles.filter(item => item.uid !== file.uid);
+            },
+
+            // 下载文件：统一下载逻辑
+            handleDownload() {
+                if (!this.downloadFileUrl) return;
+                // 创建临时a标签触发下载
+                const link = document.createElement('a');
+                link.href = this.downloadFileUrl;
+                //link.download = `转换结果_${this.IsFCT ? 'FCT' : 'ICT'}_${dayjs().format('YYYYMMDDHHmmss')}.csv`; // 自定义文件名
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        },
+        mounted() {
+            // 初始化时检查图标注册
+            if (!window.ElementPlusIconsVue) {
+                this.$message({
+                    type: 'warning',
+                    message: '图标组件加载失败，可能影响界面显示！',
+                    icon: 'warning-filled'
+                });
+            }
+        }
+    });
+
+    // 注册Element Plus图标
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            App.component(key, component);
+        }
+    }
+
+    // 全局注册Element Plus组件和消息提示
+    App.config.globalProperties.$message = ElementPlus.ElMessage;
+    App.use(ElementPlus, {
+        locale: ElementPlusLocaleZhCn,
+    }).mount('#app');
+</script>
+</html>

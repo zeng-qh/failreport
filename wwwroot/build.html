@@ -94,11 +94,17 @@
     <div id="app">
 
         <div>
+            <div class="mb-2 ml-4">
+                <el-radio-group v-model="radio1">
+                    <el-radio value="1" size="large">Option 1</el-radio>
+                    <el-radio value="2" size="large">Option 2</el-radio>
+                </el-radio-group>
+            </div>
             <div :class="UrlPath.upload_url">
 
                 <el-upload style="height: 180px;" drag limit="1" accept=".csv" :on-success="uploadSuccess"
-                    :disabled="isUploading" :before-upload="beforeUpload" :action="UrlPath.upload_url" :multiple="false"
-                    :file-list="uploadedFiles">
+                           :disabled="isUploading" :before-upload="beforeUpload" :action="UrlPath.upload_url" :multiple="false"
+                           :file-list="uploadedFiles">
                     <el-icon class="el-icon--upload"><upload-filled /></el-icon>
                     <div class="el-upload__text">
                         拖拽文件到此处或 <em>点击上传</em>
@@ -107,6 +113,7 @@
                         <div class="el-upload__tip">
                             小于20M的csv文件
                         </div>
+                        <h6 style="color: white;">  {{UrlPath.DownloadPublishedFile}}</h6>
                     </template>
                 </el-upload>
             </div>
@@ -116,7 +123,6 @@
     </div>
 </body>
 <style>
-
 </style>
 <script>
 
@@ -149,7 +155,7 @@
                 uploadedFiles: [], // 用于存储已上传文件信息
                 isUploading: false,
                 IsClosePanel: false,
-                allowedExts:['.csv'],
+                allowedExts: ['csv'],
             }
         },
         methods: {
@@ -157,8 +163,8 @@
                 this.isUploading = true;
                 // 获取文件后缀名
                 const fileExt = file.name.split('.').pop().toLowerCase();
-                // 允许的文件类型 
-
+                // 允许的文件类型
+                //console.dir(fileExt)
                 if (!this.allowedExts.includes(fileExt)) {
                     this.$message.error('仅支持上传.csv格式的文件，请重新选择！');
                     this.isUploading = false;
@@ -191,7 +197,7 @@
                     ElementPlus.ElMessageBox({
                         title: '上传成功！',
                         // mes 提示为超链接 <a>标签
-                        message: `<a href='${UrlPath.DownloadPublishedFile}' style="color:blue;" >点击下载</a>`,
+                        message: `<a href='${_this.UrlPath.DownloadPublishedFile}' style="color:blue;" >点击下载</a>`,
                         type: 'success',
                         dangerouslyUseHTMLString: true
                     }).then(() => {

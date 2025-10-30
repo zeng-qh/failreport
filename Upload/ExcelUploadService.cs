@@ -1,4 +1,5 @@
 ﻿using FailReport.Controllers;
+using MiniExcelLibs;
 using NPOI.OpenXmlFormats.Vml;
 using NPOI.SS.Formula;
 using NPOI.SS.Formula.Functions;
@@ -8,6 +9,8 @@ using System.Collections.Generic;
 using System.IO.Compression;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace FailReport.Upload
 {
@@ -51,7 +54,7 @@ namespace FailReport.Upload
             try
             {
                 var fileName = file.FileName;
-                var filePath =  Path.Combine(@"C:\TE\N51876BTestApp\N51876BTestApp\Resources\", fileName);
+                var filePath = Path.Combine(@"C:\TE\N51876BTestApp\N51876BTestApp\Resources\", fileName);
                 // 文件类型若是.csv 
                 if (Path.GetExtension(file.FileName).ToLower() != ".csv")
                 {// 生成唯一的文件名，避免覆盖
@@ -239,6 +242,322 @@ Step	Item	Range	TestValue	Result
                 throw;
             }
         }
+
+        public async Task<string> ReadExcelData2Csv(string filePath, string Type)
+        {
+            try
+            {
+                string Dev = Path.GetFileNameWithoutExtension(filePath);
+                string guidPart = Regex.Match(Dev, @"^[^_]+").Value + "_";
+                string _newCsvPath = Path.Combine("C:\\TE", "CsvDataPub", guidPart + Type + "ExcelToCsv_数据.csv");
+                if (Type == "FCT")
+                {
+                    return "处理文件成功>" + await  FCTExcelToCsv(filePath, _newCsvPath);
+                }
+                if (Type == "ICT")
+                {
+                    return "处理文件成功>" + await ICTExcelToCsv(filePath, _newCsvPath);
+                }
+            }
+            catch (Exception ex)
+            {
+
+                return $"处理文件失败> {ex.Message}";
+            }
+            return $"处理文件失败> 未知的类型 {Type}";
+        }
+
+
+        public async Task<string> FCTExcelToCsv(string filePath, string _newCsvPath)
+        {// 配置文件路径
+         //string Dev = "10364860FCT基础数据_20251023";
+         //string filePath = @"D:\20251015\" + Dev + ".xlsx";
+
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine("文件不存在！");
+                return "文件不存在！";
+            }
+
+            // 读取Excel数据，将第一行作为键
+            var rows = MiniExcel.Query(filePath, true).ToList();
+
+            if (rows.Count == 0)
+            {
+                Console.WriteLine("Excel文件中没有数据！");
+                return "Excel文件中没有数据！";
+            }
+
+            // 获取表头行
+            IDictionary<string, object> headerRow = rows[0] as IDictionary<string, object>;
+            IDictionary<string, object> headerRowText = rows[1] as IDictionary<string, object>;
+
+            // 收集所有包含"Step"的测试项目列
+            var testColumns = headerRow.Where(r => r.Key.Contains("Step"))
+                                      .Select(r => r.Key)
+                                      .ToList();
+            //await  File.WriteAllText(_newCsvPath, $"", new UTF8Encoding(true));
+            await File.WriteAllTextAsync(_newCsvPath, $"", new UTF8Encoding(true));
+            // 构建表头测试项目
+            StringBuilder csvContent = new StringBuilder();
+            StringBuilder csvTestItme = new StringBuilder();
+            csvTestItme.Append($"产品条码/测试项目");// 测试项目
+
+            StringBuilder csvMax = new StringBuilder(); //
+            csvMax.Append($"上限");// 测试项目
+            StringBuilder csvMin = new StringBuilder();
+            csvMin.Append($"下限");// 测试项目
+            StringBuilder csvUnit = new StringBuilder();
+            csvUnit.Append($"单位");// 测试项目 
+
+            csvTestItme.Append($",result");
+            csvMax.Append($",");
+            csvMin.Append($",");
+            foreach (var column in testColumns)
+            { // 获取测试项目值
+
+                string testValue = headerRowText[column]?.ToString() ?? "";
+
+                if (!string.IsNullOrEmpty(testValue))
+                {
+                    string[] head = testValue.Split('\u200B');
+                    csvTestItme.Append($",{QuoteCsvField(head[0])}");
+                    csvMax.Append($",{QuoteCsvField(head[1])}");
+                    csvMin.Append($",{QuoteCsvField(head[2])}");
+                }
+            }
+            File.AppendAllText(_newCsvPath, $"{csvTestItme.ToString()}\r\n", new UTF8Encoding(true));
+
+            File.AppendAllText(_newCsvPath, $"{csvMin.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{csvMax.ToString()}\r\n", new UTF8Encoding(true));
+
+
+
+            //遍历所有Values
+            for (int i = 0; i < rows.Count; i++)
+            //for (int i = 0; i < 9; i++)
+            {
+                var row = rows[i] as IDictionary<string, object>;
+
+                // 获取基本信息
+                string serialNumber = row["SerialNumber"]?.ToString() ?? "";
+                string result = row["Result"]?.ToString() ?? "";
+                string testTime = row["TestTime"]?.ToString() ?? "";
+                string fixture = row["Fixture"]?.ToString() ?? "";
+                string cavity = row["Cavity"]?.ToString() ?? "";
+                string operatorName = row["Operator"]?.ToString() ?? "";
+                string orderNo = row["OrderNO"]?.ToString() ?? "";
+                string itemCode = row["ItemCode"]?.ToString() ?? "";
+                string itemName = row["ItemName"]?.ToString() ?? "";
+
+                Console.WriteLine($"处理行 {i + 1}: SerialNumber = {serialNumber}");
+                csvContent.Append($"{serialNumber},{result}");// 测试项目
+                                                              //		// 处理每个测试项目，实现列转行
+                foreach (var column in testColumns)
+                {
+                    string TpValStr = row[column]?.ToString() ?? ""; // 使用?可以判断null 但是无法判断空字符串的情况
+
+                    // 获取测试项目值
+                    if (!string.IsNullOrEmpty(TpValStr))
+                    {
+                        string[] TestValue = TpValStr.Split('\u200B');
+                        csvContent.Append($",{QuoteCsvField(TestValue[3])}");// 测试项目 
+                    }
+                }
+                csvContent.Append(",\r\n");
+            }
+
+            // 写入CSV文件（使用UTF8编码，避免中文乱码）
+            //File.WriteAllText(_newCsvPath, csvContent.ToString(), new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, csvContent.ToString(), new UTF8Encoding(true));
+
+            Console.WriteLine($"转换完成，文件已保存至: {_newCsvPath}");
+            return _newCsvPath;
+        }
+        public async Task<string> ICTExcelToCsv(string filePath, string _newCsvPath)
+        {
+
+            // 配置文件路径 
+            // 37ba7c7e_1_ICT原始数据.xlsx
+            //获取文件名称的GUID部分 使用正则表达式 
+
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine("文件不存在！");
+                return "文件不存在！";
+            }
+
+            // 读取Excel数据，将第一行作为键
+            var rows = MiniExcel.Query(filePath, true).ToList();
+
+            if (rows.Count == 0)
+            {
+                Console.WriteLine("Excel文件中没有数据！");
+                return "Excel文件中没有数据！";
+            }
+
+            // 获取表头行
+            IDictionary<string, object> headerRow = rows[0] as IDictionary<string, object>;
+            IDictionary<string, object> headerRowText = rows[1] as IDictionary<string, object>;
+
+            // 收集所有包含"Step"的测试项目列
+            var testColumns = headerRow.Where(r => r.Key.Contains("Step"))
+                                      .Select(r => r.Key)
+                                      .ToList();
+            //foreach (var column in testColumns)
+            //{
+            //	column.Dump();
+            //}
+            //File.WriteAllText(_newCsvPath, $"", new UTF8Encoding(true));
+            await File.WriteAllTextAsync(_newCsvPath, $"", new UTF8Encoding(true));
+            // 构建表头测试项目
+            StringBuilder csvContent = new StringBuilder();
+            StringBuilder csvTestItme = new StringBuilder();
+            csvTestItme.Append($"产品条码/测试项目");// 测试项目
+
+
+            StringBuilder csvMin = new StringBuilder();
+            csvMin.Append($"下限");// 测试项目
+            StringBuilder csvMax = new StringBuilder(); //
+            csvMax.Append($"上限");// 测试项目
+            StringBuilder dif = new StringBuilder(); //
+            dif.Append($"差值");// 测试项目
+            StringBuilder csvUnit = new StringBuilder();
+            csvUnit.Append($"单位");// 测试项目 
+            StringBuilder csvTestTyep = new StringBuilder();
+            csvTestTyep.Append($"测试项目类型");// 测试项目 
+
+            StringBuilder R_Min = new StringBuilder();
+            R_Min.Append($"最小值");// 测试项目 
+            StringBuilder R_Max = new StringBuilder();
+            R_Max.Append($"最大值");// 测试项目 
+            StringBuilder R_Avg = new StringBuilder();
+            R_Avg.Append($"平均值");// 测试项目 
+
+            csvTestItme.Append($",result,Fixture,Cavity,TestTime");
+            //csvTestItme.Append($"");// 侧架编号
+            //csvTestItme.Append($"");// 穴位
+            csvTestTyep.Append($",,,,");
+            csvMax.Append($",,,,");
+            csvMin.Append($",,,,");
+            dif.Append($",,,,");
+            R_Min.Append($",,,,");
+            R_Max.Append($",,,,");
+            R_Avg.Append($",,,,");
+            //testColumns.Count().Dump();
+            foreach (var column in testColumns)
+            { // 获取测试项目值
+                string testValue = headerRowText[column]?.ToString() ?? "";
+
+                if (!string.IsNullOrEmpty(testValue))
+                {
+                    string head = Regex.Replace(testValue, @" +", ",", RegexOptions.Multiline);
+                    //testValue.Dump();
+
+                    csvTestItme.Append($",{head.Split(',')[1]}");
+                    csvTestTyep.Append($",{head.Split(',')[2]} {head.Split(',')[3]}");
+                    //csvMax.Append($",{head.Split(',')[4]}");
+                    //csvMin.Append($",{head.Split(',')[5]}");
+                    double V = 0;
+                    double.TryParse(Regex.Match(head.Split(',')[3], @"^\d+(\.\d+)?").Value, out V);
+                    //if (V>0)
+                    //{
+                    //	
+                    //}
+                    double Max = 0;
+                    double Min = 0;
+                    double.TryParse(Regex.Match(head.Split(',')[4], @"^\d+(\.\d+)?").Value, out Max);
+                    double.TryParse(Regex.Match(head.Split(',')[5], @"^\d+(\.\d+)?").Value, out Min);
+                    double MaxVal = (V * (1 + (Max / 100)));
+                    double MinVal = (V * (1 - (Max / 100)));
+                    csvMax.Append($",{Math.Round(MaxVal, 4)}");
+                    csvMin.Append($",{Math.Round(MinVal, 4)}");
+                    dif.Append($",{Math.Round(MaxVal - MinVal, 4)}");
+                    R_Min.Append($",=MIN(F9:F{8 + rows.Count})");
+                    R_Max.Append($",=Max(F9:F{8 + rows.Count})");
+                    R_Avg.Append($",=AVERAGE(F9:F{8 + rows.Count})");
+
+
+                }
+            }
+            File.AppendAllText(_newCsvPath, $"{csvTestItme.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{csvTestTyep.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{csvMin.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{csvMax.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{dif.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{R_Min.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{R_Max.ToString()}\r\n", new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, $"{R_Avg.ToString()}\r\n", new UTF8Encoding(true));
+
+
+
+            //遍历所有Values
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i] as IDictionary<string, object>;
+
+                // 获取基本信息
+                string serialNumber = row["SerialNumber"]?.ToString() ?? "";
+                string result = row["Result"]?.ToString() ?? "";
+                string testTime = row["TestTime"]?.ToString() ?? "";
+                string fixture = row["Fixture"]?.ToString() ?? "";
+                string cavity = row["Cavity"]?.ToString() ?? "";
+                string operatorName = row["Operator"]?.ToString() ?? "";
+                string orderNo = row["OrderNO"]?.ToString() ?? "";
+                string itemCode = row["ItemCode"]?.ToString() ?? "";
+                string itemName = row["ItemName"]?.ToString() ?? "";
+
+                Console.WriteLine($"处理行 {i + 1}: SerialNumber = {serialNumber}");
+                csvContent.Append($"{serialNumber},{result},{fixture},{cavity},{testTime}");// 测试项目
+                                                                                            //		// 处理每个测试项目，实现列转行
+                foreach (var column in testColumns)
+                {
+                    // 获取测试项目值
+                    string testValue = row[column]?.ToString() ?? "";
+
+                    if (!string.IsNullOrEmpty(testValue))
+                    {
+                        string TestValue = Regex.Replace(testValue, @" +", ",", RegexOptions.Multiline);// 空格替换为,
+
+                        // TestValue.Split(",")[6].Dump();
+                        //csvContent.Append($",{TestValue.Split(",")[6]}");// 测试项目
+                        //csvContent.Append($",{TestValue.Split(",")[1]}");// 测试项目
+                        //csvContent.Append($",{column}");// 测试项目
+                        double _TestVal = 0;
+                        double.TryParse(Regex.Match(TestValue.Split(",")[6], @"^\d+(\.\d+)?").Value, out _TestVal); //只提取数字部分
+                        csvContent.Append($",{Math.Round(_TestVal, 2)}");// 测试项目
+                    }
+
+                }
+                csvContent.Append(",\r\n");
+            }
+
+            // 写入CSV文件（使用UTF8编码，避免中文乱码）
+            //File.WriteAllText(_newCsvPath, csvContent.ToString(), new UTF8Encoding(true));
+            File.AppendAllText(_newCsvPath, csvContent.ToString(), new UTF8Encoding(true));
+
+            Console.WriteLine($"转换完成，文件已保存至: {_newCsvPath}");
+            return _newCsvPath;
+        }
+
+
+
+        // 处理CSV字段，添加引号以处理包含逗号或特殊字符的情况
+        private static string QuoteCsvField(string field)
+        {
+            if (string.IsNullOrEmpty(field))
+                return "";
+
+            // 如果字段包含逗号、引号或换行符，需要用引号括起来
+            if (field.Contains(",") || field.Contains("\"") || field.Contains("\r") || field.Contains("\n"))
+            {
+                // 替换引号为两个引号
+                return $"\"{field.Replace("\"", "\"\"")}\"";
+            }
+            return field;
+        }
+
+
     }
     public interface IExcelUploadService
     {
@@ -250,6 +569,9 @@ Step	Item	Range	TestValue	Result
         Task<FileUploadResult> SaveExcelFileAsync(IFormFile file);
         Task<string> ReadExcelData2Txt(string filePath);
         Task UnZipFile(string filePath);
+
+
+        Task<string> ReadExcelData2Csv(string filePath, string Type);
     }
 
     /// <summary>
