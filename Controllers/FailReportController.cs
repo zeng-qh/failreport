@@ -601,6 +601,13 @@ namespace FailReport.Controllers
             Console.WriteLine("版本号已更新");
         }
 
+
+        [HttpGet]
+        public string SearchCodeLog(string Code = "GCETE-TM-012")
+        {
+            string res = System.IO.File.ReadAllText(@"C:\TE\TestBoxLogs\" + Code + ".txt", Encoding.UTF8); // 读取文件内容
+            return res;
+        }
     }
 
 

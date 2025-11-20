@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资源箱检验日志查询</title>
+    <script src="./Static/js/vue.global.js"></script>
+    <!-- element-plus -->
+    <link rel="stylesheet" href="./Static/css/index.css">
+    <script src="./Static/js/index.full.js"></script>
+    <script src="./Static/js/Icons/index.iife.js"></script>
+    <script src="./Static/js/zh-cn.js"></script>
+    <script src="./Static/js/jquery.js"></script>
+    <script src="./Static/js/echarts.js"></script>
+    <script src="./Static/js/dayjs.min.js"></script>
+    <link href="./Static/img/favicon32.ico" rel="shortcut icon" type="image/x-icon">
+    <!-- clipboard -->
+    <script src="./Static/js/clipboard.js"></script>
+
+    <style>
+        /* 全局样式优化：增强可读性与视觉层次 */
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            font-family: "Microsoft YaHei", sans-serif;
+            color: #303133;
+        }
+
+        /* 卡片容器：强化阴影与圆角，提升质感 */
+        .conversion-card {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            padding: 32px;
+        }
+
+        /* 模式切换区：调整间距与对齐 */
+        .mode-switch-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eef1f5;
+            flex-wrap: nowrap;
+        }
+
+        /* 结果显示区域：优化滚动与排版 */
+        .result-section {
+            margin-top: 24px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            white-space: pre-wrap; /* 支持自动换行，提升可读性 */
+            overflow-x: auto;
+            font-family: monospace;
+            line-height: 1.8;
+            border: 1px solid #e5e7eb;
+        }
+
+        /* 加载动画：居中优化 */
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        /* 响应式适配：更细腻的断点控制 */
+        @media (max-width: 768px) {
+            .mode-switch-wrapper {
+                flex-wrap: wrap;
+            }
+            .conversion-card {
+                padding: 24px;
+            }
+            .result-section {
+                font-size: 13px;
+            }
+        }
+        @media (max-width: 480px) {
+            .conversion-card {
+                padding: 16px;
+            }
+            .mode-switch-wrapper {
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- 核心卡片容器 -->
+        <div class="conversion-card">
+            <h1 >资源箱检验日志查询</h1>
+            <!-- 1. 模式切换区 -->
+            <div class="mode-switch-wrapper">
+              <el-input 
+                    v-model="SearchCode" 
+                    class="responsive-input" 
+                    width="240px"
+                    placeholder="请扫描或输入资源箱编号" 
+                    @keyup.enter="GetCodeLog"
+                    :prefix-icon="Search" 
+                    clearable 
+                    size="default"
+                    :maxlength="30"
+                    show-word-limit
+                />
+                <el-button 
+                    type="primary" 
+                    :icon="Search" 
+                    @click="GetCodeLog" 
+                    :loading="loading"
+                    size="default"
+                >查询</el-button>
+                <el-text class="mx-1" v-if="LogTxt" style="color: #606266; font-size: 14px;">{{LogTxt.length > 100 ? LogTxt.slice(0, 100) + '...' : LogTxt}}</el-text>
+            </div>
+
+            <!-- 2. 查询结果展示区 -->
+            <div v-if="loading" class="loading-container">
+                <el-loading :loading="true" />
+            </div>
+            <div v-else-if="LogTxt" class="result-section">
+                {{LogTxt}}
+            </div>
+            <div v-else class="result-section" style="color: #909399; text-align: center;">
+                暂无查询结果，请输入资源箱编号后点击查询
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    // 基础URL配置：自动适配环境
+    const UrlBase = (location.origin === "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api";
+
+    const { createApp, reactive, ref, toRaw } = Vue;
+
+    const App = createApp({
+        data() {
+            return {
+                UrlPath: {
+                    GetCodeLogUrl: `${UrlBase}/FailReport/SearchCodeLog?Code=`,
+                },
+                SearchCode: "",
+                LogTxt: "",
+                loading: false
+            };
+        },
+        methods: {
+            async GetCodeLog() {
+                const code = this.SearchCode.trim();
+                if (!code) {
+                    this.$message.warning('请输入资源箱编号');
+                    return;
+                }
+
+                this.loading = true;
+                this.LogTxt = "";
+
+                try {
+                    const response = await fetch(this.UrlPath.GetCodeLogUrl + encodeURIComponent(code));
+                    if (!response.ok) {
+                        throw new Error(`请求失败，状态码：${response.status}`);
+                    }
+                    
+                    const data = await response.text();
+                    this.LogTxt = data || "未查询到该资源箱的日志记录";
+                } catch (error) {
+                    console.error('查询失败:', error);
+                    this.$message.error('查询失败：' + error.message);
+                    this.LogTxt = "查询失败：" + error.message;
+                } finally {
+                    this.loading = false;
+                }
+            }
+        },
+        mounted() {
+            // 初始化时检查图标注册
+            if (typeof ElementPlusIconsVue === 'undefined') {
+                this.$message({
+                    type: 'warning',
+                    message: '图标组件加载失败，可能影响界面显示！',
+                    icon: 'warning-filled'
+                });
+            }
+        }
+    });
+
+    // 注册Element Plus图标
+    if (typeof ElementPlusIconsVue !== 'undefined') {
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            App.component(key, component);
+        }
+    }
+
+    // 全局注册Element Plus组件和消息提示
+    App.config.globalProperties.$message = ElementPlus.ElMessage;
+    App.use(ElementPlus, {
+        locale: ElementPlusLocaleZhCn,
+    }).mount('#app');
+</script>
+</html>

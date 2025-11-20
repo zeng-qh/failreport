@@ -301,18 +301,14 @@ Step	Item	Range	TestValue	Result
             // 构建表头测试项目
             StringBuilder csvContent = new StringBuilder();
             StringBuilder csvTestItme = new StringBuilder();
-            csvTestItme.Append($"产品条码/测试项目");// 测试项目
+            csvTestItme.Append($"产品条码/测试项目,result,TestTime,Fixture,Cavity,Operator,OrderNO");// 测试项目
 
             StringBuilder csvMax = new StringBuilder(); //
-            csvMax.Append($"上限");// 测试项目
+            csvMax.Append($"上限,,,,,,,,,");// 测试项目
             StringBuilder csvMin = new StringBuilder();
-            csvMin.Append($"下限");// 测试项目
+            csvMin.Append($"下限,,,,,,,,,");// 测试项目
             StringBuilder csvUnit = new StringBuilder();
-            csvUnit.Append($"单位");// 测试项目 
-
-            csvTestItme.Append($",result");
-            csvMax.Append($",");
-            csvMin.Append($",");
+            csvUnit.Append($"单位,,,,");// 测试项目  
             foreach (var column in testColumns)
             { // 获取测试项目值
 
@@ -351,8 +347,8 @@ Step	Item	Range	TestValue	Result
                 string itemName = row["ItemName"]?.ToString() ?? "";
 
                 Console.WriteLine($"处理行 {i + 1}: SerialNumber = {serialNumber}");
-                csvContent.Append($"{serialNumber},{result}");// 测试项目
-                                                              //		// 处理每个测试项目，实现列转行
+                csvContent.Append($"{serialNumber},{result},{testTime},{fixture},{cavity},{operatorName},{orderNo}");// 测试项目 
+                //		// 处理每个测试项目，实现列转行
                 foreach (var column in testColumns)
                 {
                     string TpValStr = row[column]?.ToString() ?? ""; // 使用?可以判断null 但是无法判断空字符串的情况
