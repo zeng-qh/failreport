@@ -3,7 +3,11 @@ name: Publish .NET Release
 on:
   workflow_dispatch:
   push:
-    branches: [ "master" ]
+    # branches: [ "master" ] # 如果需要指定分支，可以取消注释并修改
+    paths:
+     -*/*.csproj # 监听所有子目录下的.csproj文件
+  release:
+    types: [published] # 只在发布release时触发
 
 permissions:
   contents: write
