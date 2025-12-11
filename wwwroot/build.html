@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-cn">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FailReport</title>
+    <title>CSV文件上传工具</title>
     <script src="./Static/js/vue.global.js"></script>
     <!-- element-plus -->
     <link rel="stylesheet" href="./Static/css/index.css">
@@ -14,270 +13,369 @@
     <script src="./Static/js/jquery.js"></script>
     <script src="./Static/js/echarts.js"></script>
     <script src="./Static/js/dayjs.min.js"></script>
-
     <link href="./Static/img/favicon32.ico" rel="shortcut icon" type="image/x-icon">
     <!-- clipboard -->
-
     <script src="./Static/js/clipboard.js"></script>
-    <!--
-    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.js"></script>
-    <link href="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.css" rel="stylesheet">
-    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/index.full.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/element-plus/2.3.12/locale/zh-cn.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
-    <script src="https://cdn.bootcdn.net/ajax/libs/clipboard.js/2.0.11/clipboard.js"></script> -->
-    <script>
-        // 存储原始传入的名称
-        let pkg_name_origin = null;
-        const npmInstall = (originName) => {
-            // Trim string
-            const name = originName.trim();
-            pkg_name_origin = name;
-            // 三种引入方式
-            // 如果是一个有效的URL，直接通过<script />标签插入
-            if (/^https?:\/\//.test(name)) return injectScript(name);
-            // 如果指定了版本，尝试使用unpkg加载
-            if (name.indexOf('@') !== -1) return unpkg(name);
-            // 否则，尝试使用cdnjs搜索
-            return cdnjs(name);
-        };
 
-        // 在页面中插入<script />标签
-        const injectScript = (url) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.onload = () => {
-                console.log(pkg_name_origin, ' 安装成功。');
-            };
-            script.onerror = () => {
-                console.log(pkg_name_origin, ' 安装失败。');
-            };
-            document.body.appendChild(script);
-            // document.body.removeChild(script);
-        };
-
-        const unpkg = (name) => {
-            injectScript(`https://unpkg.com/${name}`);
-        };
-
-        const cdnjs = async (name) => {
-            const searchPromise = await fetch(
-                `https://api.cdnjs.com/libraries?search=${name}`,
-                // 不显示referrer的任何信息在请求头中
-                { referrerPolicy: 'no-referrer' }
-            );
-            const { results, total } = await searchPromise.json();
-            if (total === 0) {
-                console.error('Sorry, ', name, ' not found, please try another keyword.');
-                return;
+    <style>
+        /* 全局样式：统一基调与间距 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+        }
+        body {
+            background-color: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        /* 主容器：居中卡片，增强层次感 */
+        .upload-container {
+            width: 100%;
+            max-width: 600px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            padding: 30px;
+        }
+        /* 页面标题：突出主题 */
+        .page-title {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 500;
+            color: #1d5dcb;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .page-title el-icon {
+            font-size: 24px;
+        }
+        /* 上传组件样式优化 */
+        .custom-upload {
+            height: 220px !important;
+            border: 2px dashed #c0c4cc !important;
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+            background-color: #fafbfc !important;
+        }
+        .custom-upload:hover {
+            border-color: #1d5dcb !important;
+            background-color: #f0f7ff !important;
+        }
+        /* 上传图标与文字：放大更醒目 */
+        .el-upload__icon {
+            font-size: 48px !important;
+            color: #86909c !important;
+        }
+        .el-upload__text {
+            font-size: 16px !important;
+            color: #606266 !important;
+            margin-top: 16px !important;
+            line-height: 1.5 !important;
+        }
+        .el-upload__text em {
+            color: #1d5dcb !important;
+            font-weight: 500 !important;
+            cursor: pointer;
+        }
+        /* 上传提示：突出限制条件 */
+        .upload-tip {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #909399;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .upload-tip el-icon {
+            color: #faad14 !important;
+        }
+        /* 上传进度条：居中显示 */
+        .upload-progress {
+            width: 80% !important;
+            margin: 20px auto 0 !important;
+        }
+        /* 响应式适配：小屏幕调整间距 */
+        @media (max-width: 768px) {
+            .upload-container {
+                padding: 20px;
             }
-
-            // 取结果中最相关的一条
-            const { name: exactName, latest: url } = results[0];
-            if (name !== exactName) {
-                console.log(name, ' not found, import ', exactName, ' instead.');
+            .page-title {
+                font-size: 18px;
             }
-            // 通过<script />标签插入
-            injectScript(url);
-        };
-    </script>
-
-
-
-
+            .el-upload__icon {
+                font-size: 40px !important;
+            }
+        }
+    </style>
 </head>
-
-
 <body>
     <div id="app">
-
-        <div>
-            <div class="mb-2 ml-4">
-                <el-radio-group v-model="radio1">
-                    <el-radio value="1" size="large">Option 1</el-radio>
-                    <el-radio value="2" size="large">Option 2</el-radio>
-                </el-radio-group>
+        <!-- 主卡片容器：居中显示 -->
+        <div class="upload-container">
+            <!-- 页面标题 -->
+            <div class="page-title">
+                <el-icon><file-upload-filled /></el-icon>
+                CSV文件上传后编译为exe程序
             </div>
-            <div :class="UrlPath.upload_url">
 
-                <el-upload style="height: 180px;" drag limit="1" accept=".csv" :on-success="uploadSuccess"
-                           :disabled="isUploading" :before-upload="beforeUpload" :action="UrlPath.upload_url" :multiple="false"
-                           :file-list="uploadedFiles">
-                    <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+            <!-- CSV上传组件 -->
+            <el-upload 
+                class="custom-upload"
+                drag 
+                limit="1" 
+                accept=".csv" 
+                :on-success="uploadSuccess"
+                :on-error="uploadError"
+                :on-remove="handleFileRemove"
+                :disabled="isUploading" 
+                :before-upload="beforeUpload"
+                :action="UrlPath.upload_url" 
+                :multiple="false" 
+                :file-list="uploadedFiles"
+            >
+                <!-- 上传默认状态 -->
+                <template #default>
+                    <el-icon class="el-upload__icon">
+                        <upload-filled v-if="!isUploading" />
+                        <loading v-else ></loading> <!-- 上传中显示加载图标 -->
+                    </el-icon>
                     <div class="el-upload__text">
-                        拖拽文件到此处或 <em>点击上传</em>
+                        拖拽CSV文件到此处<br>或 <em>点击上传</em>
                     </div>
-                    <template #tip>
-                        <div class="el-upload__tip">
-                            小于20M的csv文件
-                        </div>
-                        <h6 style="color: white;">  {{UrlPath.DownloadPublishedFile}}</h6>
-                    </template>
-                </el-upload>
-            </div>
+                </template>
+
+                <!-- 上传中进度条 -->
+                <template #uploading>
+                    <el-progress 
+                        class="upload-progress"
+                        :percentage="uploadProgress" 
+                        stroke-width="3" 
+                        color="#1d5dcb"
+                    />
+                    <p style="text-align: center; margin-top: 12px; color: #606266; font-size: 14px;">
+                        正在上传与处理（{{ uploadProgress }}%）...
+                    </p>
+                </template>
+
+                <!-- 上传提示 -->
+                <template #tip>
+                    <div class="upload-tip">
+                        <el-icon><warning-filled /></el-icon>
+                        支持格式：.csv（单个文件最大20MB），请确保文件编码为UTF-8
+                    </div>
+                </template>
+
+                <!-- 已上传文件显示 -->
+                <template #file="{ file }">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px;">
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px; color: #606266;">
+                            {{ file.name }}
+                        </span>
+                        <el-button 
+                            icon="delete" 
+                            size="mini" 
+                            type="text" 
+                            @click.stop="handleFileRemove(file)"
+                            style="color: #f56c6c;"
+                        ></el-button>
+                    </div>
+                </template>
+            </el-upload>
         </div>
-
-
     </div>
 </body>
-<style>
-</style>
 <script>
+    // 基础URL配置：确保接口地址正确
+    const UrlBase = (location.origin === "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api";
 
-    // var UrlBase = "https://localhost:5001/api"
-    const UrlBase = (location.origin == "http://127.0.0.1:3000" ? "https://localhost:5001" : location.origin) + "/api"
+    const { createApp, reactive, ref, toRaw } = Vue;
 
-    const { createApp, reactive, ref, toRaw } = Vue
-
-    // reactive(message)
-
-
-    // 在需要的地方使用myElement引用
     const App = createApp({
-        setup() {
-            // const value1 = ref('')
-
-        },
         data() {
             return {
                 UrlPath: {
-                    GetAllFail: UrlBase + "/FailReport/GetAllFail?Path=",
-                    GetLogDirectorys: UrlBase + "/FailReport/GetLogDirectorys",
-                    GetFailData: UrlBase + "/FailReport/GetFailData",
-                    OpenFileDirectory: UrlBase + "/FailReport/OpenFileDirectory?Path=",
-                    SetLogsPath_Server: UrlBase + "/FailReport/SetLogsPath?Path=",
-                    upload_url: UrlBase + "/FailReport/UploadExcel/upload",
-                    DownloadPublishedFile: UrlBase + "/FailReport/DownloadPublishedFile",
-                }
-                ,
-                uploadedFiles: [], // 用于存储已上传文件信息
-                isUploading: false,
-                IsClosePanel: false,
-                allowedExts: ['csv'],
-            }
+                    GetAllFail: `${UrlBase}/FailReport/GetAllFail?Path=`,
+                    GetLogDirectorys: `${UrlBase}/FailReport/GetLogDirectorys`,
+                    GetFailData: `${UrlBase}/FailReport/GetFailData`,
+                    OpenFileDirectory: `${UrlBase}/FailReport/OpenFileDirectory?Path=`,
+                    SetLogsPath_Server: `${UrlBase}/FailReport/SetLogsPath?Path=`,
+                    upload_url: `${UrlBase}/FailReport/UploadExcel/upload`, // 修复样式绑定错误，移除无用的:class绑定
+                    DownloadPublishedFile: `${UrlBase}/FailReport/DownloadPublishedFile`,
+                },
+                uploadedFiles: [], // 已上传文件列表
+                isUploading: false, // 上传状态
+                uploadProgress: 0, // 上传进度（新增）
+                allowedExts: ['csv'], // 允许的文件格式
+            };
         },
         methods: {
+            // 上传前校验：优化提示文案
             beforeUpload(file) {
                 this.isUploading = true;
-                // 获取文件后缀名
+                this.uploadProgress = 0; // 重置进度
                 const fileExt = file.name.split('.').pop().toLowerCase();
-                // 允许的文件类型
-                //console.dir(fileExt)
+
+                // 1. 格式校验
                 if (!this.allowedExts.includes(fileExt)) {
-                    this.$message.error('仅支持上传.csv格式的文件，请重新选择！');
-                    this.isUploading = false;
-                    return false;
-                }
-                // 文件大小校验
-                // console.error(file)
-                const fileSize = file.size / 1024 / 1024; // 转换为MB
-                if (fileSize > 20) {
-                    this.$message.error('文件大小不能超过20MB，请重新选择！');
+                    this.$message({
+                        type: 'error',
+                        message: '仅支持上传.csv格式的文件，请重新选择！',
+                        icon: 'warning-filled'
+                    });
                     this.isUploading = false;
                     return false;
                 }
 
+                // 2. 大小校验
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                if (fileSize > 20) {
+                    this.$message({
+                        type: 'error',
+                        message: `文件大小超出限制（当前${fileSize}MB，最大支持20MB），请压缩文件后重试！`,
+                        icon: 'warning-filled'
+                    });
+                    this.isUploading = false;
+                    return false;
+                }
+
+                // 模拟上传进度（实际可根据接口实时返回进度调整）
+                this.simulateUploadProgress();
                 return true;
             },
+
+            // 模拟上传进度：提升用户感知
+            simulateUploadProgress() {
+                const timer = setInterval(() => {
+                    if (this.uploadProgress < 90) {
+                        this.uploadProgress += Math.floor(Math.random() * 10);
+                    } else {
+                        clearInterval(timer);
+                    }
+                }, 300);
+            },
+
+            // 上传成功：优化弹窗与下载体验
             uploadSuccess(data) {
-                this.uploadedFiles = []; // 清空已上传的文件列表
-                console.error(data); // 上传成功后返回的数据
-                /*    this.SetLogsPath(data.filePath)*/
-                var _this = this;
-                var _window = window;
+                this.uploadedFiles = []; // 清空文件列表
+                this.uploadProgress = 100; // 进度置为100%
+                const _this = this;
                 const loading = ElementPlus.ElLoading.service({
                     lock: true,
-                    text: 'Loading',
-                    background: 'rgba(0, 0, 0, 0.7)',
-                })
+                    text: '正在准备下载文件...',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                });
+
+                // 延迟弹窗：确保后台文件处理完成
                 setTimeout(() => {
-                    // 点击确定后刷新页面
+                    loading.close();
                     ElementPlus.ElMessageBox({
                         title: '上传成功！',
-                        // mes 提示为超链接 <a>标签
-                        message: `<a href='${_this.UrlPath.DownloadPublishedFile}' style="color:blue;" >点击下载</a>`,
+                        message: `
+                            <div style="text-align: center; margin: 10px 0;">
+                                文件已成功处理，可通过以下方式下载：
+                            </div>
+                            <div style="text-align: center; margin-top: 15px;">
+                                <a href="${_this.UrlPath.DownloadPublishedFile}" style="color:#1d5dcb; text-decoration: underline; font-size: 14px;" target="_blank">
+                                    点击下载文件
+                                </a>
+                            </div>
+                        `,
                         type: 'success',
-                        dangerouslyUseHTMLString: true
+                        dangerouslyUseHTMLString: true,
+                        confirmButtonText: '立即下载',
+                        confirmButtonColor: '#1d5dcb',
+                        cancelButtonText: '稍后下载'
                     }).then(() => {
-                        // 等待3秒后刷新页面
-                        //_this.SelectValue = _this.LogsPath + "\\" + data.select;
-                        loading.close();
-                        // 点击确认后下载二进制文件
-                        //console.error(UrlPath.DownloadPublishedFile);
-                        //_window.location(UrlPath.DownloadPublishedFile);
-
-
+                        // 点击确认按钮自动下载
+                        this.handleDownload();
                         this.isUploading = false;
-
-                        //_this.GetAllFail(_this.SelectValue)
-                        // location.reload();
                     }).catch(() => {
-                        loading.close();
+                        this.isUploading = false;
+                        this.$message.success('可在需要时手动访问下载链接');
                     });
-                }, 3000);
-                // this.$message.success('上传成功');
+                }, 1500);
             },
+
+            // 上传失败：新增错误提示
+            uploadError(err) {
+                this.isUploading = false;
+                this.uploadProgress = 0;
+                this.$message({
+                    type: 'error',
+                    message: '文件上传失败，请检查网络或文件完整性后重试！',
+                    icon: 'error-filled'
+                });
+                console.error('上传错误详情：', err);
+            },
+
+            // 移除已上传文件
+            handleFileRemove(file) {
+                this.uploadedFiles = this.uploadedFiles.filter(item => item.uid !== file.uid);
+            },
+
+            // 统一下载逻辑
+            handleDownload() {
+                const link = document.createElement('a');
+                link.href = this.UrlPath.DownloadPublishedFile;
+                link.download = `处理结果_${dayjs().format('YYYYMMDDHHmmss')}.csv`; // 自定义下载文件名
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+
             openFullScreen() {
                 const loading = ElementPlus.ElLoading.service({
                     lock: true,
                     text: 'Loading',
                     background: 'rgba(0, 0, 0, 0.7)',
-                })
-                setTimeout(() => {
-                    loading.close()
-                }, 200)
+                });
+                setTimeout(() => loading.close(), 200);
             },
+
             sleep(ms) {
                 return new Promise(resolve => setTimeout(resolve, ms));
             },
+
             filterMethod(query, item) {
                 if (query) {
-                    return toRaw(item.label).toLowerCase().includes(query.toLowerCase())
+                    return toRaw(item.label).toLowerCase().includes(query.toLowerCase());
                 }
                 return item;
-            },
-
-
-
-
-
-        },
-
-        // 初始化后调用Get方法
-        created() {
-
+            }
         },
         mounted() {
-
-
-        },
-        watch() {
-
+            // 初始化时检查图标组件
+            if (!window.ElementPlusIconsVue) {
+                this.$message({
+                    type: 'warning',
+                    message: '图标组件加载失败，可能影响界面显示！',
+                    icon: 'warning-filled'
+                });
+            }
         }
+    });
 
-
-
-    })
-    //   注册所有图标组件 (这是独立的操作)
+    // 注册Element Plus图标
     if (typeof ElementPlusIconsVue !== 'undefined') {
         for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
             App.component(key, component);
         }
-        // console.log("图标已成功注册！");
     }
-    App.config.globalProperties.$message = ElementPlus.ElMessage; // 全局注册
 
+    // 全局注册Element Plus组件和消息提示
+    App.config.globalProperties.$message = ElementPlus.ElMessage;
     App.use(ElementPlus, {
         locale: ElementPlusLocaleZhCn,
-    }).mount('#app')
-
-    // "2023-11-11T17:03:29.6729195+08:00" 转换为 yyyy-MM-dd HH:mm:ss 格式
-    // console.dir(dayjs("2023-11-11T17:03:29.6729195+08:00").format('YYYY-MM-DD HH:mm:ss'))
-
+    }).mount('#app');
 </script>
-
-
-
 </html>
