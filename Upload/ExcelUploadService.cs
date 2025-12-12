@@ -142,17 +142,17 @@ namespace FailReport.Upload
                     if (!seen.Add(serialNumber)) // Add失败说明已存在（重复）
                     {
                         continue;
-                    }
+                    }               
                     result = GetCellValue(row, headerDict, "Result");
                     string testTime = GetCellValue(row, headerDict, "TestTime");
                     string fixture = GetCellValue(row, headerDict, "Fixture");
                     string cavity = GetCellValue(row, headerDict, "Cavity");
                     string operatorName = GetCellValue(row, headerDict, "Operator");
                     string orderNo = GetCellValue(row, headerDict, "OrderNO");
-                    string itemCode = GetCellValue(row, headerDict, "ItemCode");
-                    string itemName = GetCellValue(row, headerDict, "ItemName");
-                    string P = @"ProdName
-ProdCode:
+                    string ProdCode = GetCellValue(row, headerDict, "ItemCode");
+                    string ProdName = GetCellValue(row, headerDict, "ItemName");
+                    string P = @"ProdName:" + ProdName + @"
+ProdCode:"+ ProdCode + @"
 SerialNumber:" + serialNumber + @"
 TestUser: " + (operatorName.Replace("Operator/", "")) + @"
 TestFixture: " + fixture + @"
