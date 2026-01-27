@@ -10,7 +10,7 @@ RUN dotnet restore "FailReport.csproj"
 COPY . .
 RUN dotnet build "FailReport.csproj" -c Release --no-restore \
     && echo "构建产物验证：" \
-    && ls -la /src/bin/Release/net9.0/ \
+    && ls -la /src/bin/Release/net10.0/ \
     # 发布项目（不使用--no-build，让publish确保所有必要文件都被包含）
     && dotnet publish "FailReport.csproj" -c Release -o /app/publish \
        --no-build --no-restore \
