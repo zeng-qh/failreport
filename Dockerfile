@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS publish
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS publish
 WORKDIR /src 
 # 仅复制项目文件，还原依赖（单独成层，修改代码不触发重新下载）
 COPY ["FailReport.csproj", "./"]
@@ -19,7 +19,7 @@ RUN dotnet build "FailReport.csproj" -c Release --no-restore \
     && rm -rf /src/obj /src/bin  # 清理构建残留
 
 # 运行阶段（精简镜像，仅保留运行时依赖）
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # 创建非root用户并切换
