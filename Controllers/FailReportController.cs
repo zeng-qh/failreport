@@ -409,9 +409,18 @@ namespace FailReport.Controllers
 
                 if (result.Success)
                 {
-                    if (Type == "FCT" || Type == "ICT")
+                    if (!string.IsNullOrEmpty(Type))
                     {
-                        string res = await _uploadService.ReadExcelData2Csv(result.FilePath, Type);
+                        string res = string.Empty;
+                        if (Type == "FCT" || Type == "ICT")
+                        {
+                            res = await _uploadService.ReadExcelData2Csv(result.FilePath, Type);
+                        }
+                        // else
+                        // {
+                        //     res = await _uploadService.Import_FCT_MSA(result.FilePath, Type);
+                        // }
+
                         if (res != null)
                         {
 
@@ -423,7 +432,7 @@ namespace FailReport.Controllers
                         }
                         else
                         {
-                            return StatusCode(500, new { message = "文件上传失败", error = "转换CSV文件失败" });
+                            return StatusCode(500, new { message = "文件上传失败", error = "转换文件失败" });
                         }
 
                     }
@@ -547,7 +556,7 @@ namespace FailReport.Controllers
         [HttpGet]
         public IActionResult DownloadCsvDataFile(string FilePath)
         {
-            if (FilePath.Contains("TE") && FilePath.EndsWith(".csv", StringComparison.InvariantCultureIgnoreCase))
+            if (FilePath.Contains("TE") && (FilePath.EndsWith(".csv", StringComparison.InvariantCultureIgnoreCase)|| FilePath.EndsWith(".xlsx", StringComparison.InvariantCultureIgnoreCase)))
             {
                 if (System.IO.File.Exists(FilePath))
                 {
@@ -605,6 +614,7 @@ namespace FailReport.Controllers
         [HttpGet]
         public string SearchCodeLog(string Code = "GCETE-TM-012")
         {
+            //return ExcelUploadService.import("C:\\Logs_Uploads\\9b02f2ab_FCT基础数据_20251210 - 副本", "");
             string res = System.IO.File.ReadAllText(@"C:\TE\TestBoxLogs\" + Code + ".txt", Encoding.UTF8); // 读取文件内容
             return res;
         }

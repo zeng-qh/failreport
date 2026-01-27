@@ -5,18 +5,29 @@ using NPOI.SS.Formula;
 using NPOI.SS.Formula.Functions;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.IO;
 using System.IO.Compression;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Transactions;
 
 namespace FailReport.Upload
 {
+
     public class ExcelUploadService : IExcelUploadService
     {
-
 
         private string _uploadPath;
 
@@ -142,7 +153,7 @@ namespace FailReport.Upload
                     if (!seen.Add(serialNumber)) // Add失败说明已存在（重复）
                     {
                         continue;
-                    }               
+                    }
                     result = GetCellValue(row, headerDict, "Result");
                     string testTime = GetCellValue(row, headerDict, "TestTime");
                     string fixture = GetCellValue(row, headerDict, "Fixture");
@@ -152,7 +163,7 @@ namespace FailReport.Upload
                     string ProdCode = GetCellValue(row, headerDict, "ItemCode");
                     string ProdName = GetCellValue(row, headerDict, "ItemName");
                     string P = @"ProdName:" + ProdName + @"
-ProdCode:"+ ProdCode + @"
+ProdCode:" + ProdCode + @"
 SerialNumber:" + serialNumber + @"
 TestUser: " + (operatorName.Replace("Operator/", "")) + @"
 TestFixture: " + fixture + @"
@@ -199,24 +210,29 @@ Step	Item	Range	TestValue	Result
                     Console.WriteLine("---------------" + TxtName + "生成完成！----------------------");
                 }
 
-                return ("---------------" + "生成完成 " + sheet.LastRowNum + "条数据！----------------------");
+                //return ("---------------" + "生成完成 " + sheet.LastRowNum + "条数据！----------------------");
                 //Console.WriteLine("---------------" + "生成完成 " + sheet.LastRowNum + "条数据！----------------------");
-
+                return LogsPath;
             }
         }
 
-        private string GetCellValue(IRow row, Dictionary<int, string> headerDict, string columnName)
+        private static string GetCellValue(IRow row, Dictionary<int, string> headerDict, string columnName)
         {
             var column = headerDict.FirstOrDefault(h => h.Value == columnName);
+
             if (column.Key >= 0 && column.Key < row.LastCellNum)
             {
                 ICell cell = row.GetCell(column.Key);
+                if ((!(cell?.DateCellValue is null)) && cell?.DateCellValue.Value.ToString().Length > 0)
+                {
+                    return cell?.DateCellValue.ToString()??"";
+                }
                 return cell?.ToString() ?? string.Empty;
             }
             return string.Empty;
         }
 
-        public Task UnZipFile(string filePath)
+        public async Task<string> UnZipFile(string filePath)
         {
             try
             {
@@ -234,7 +250,8 @@ Step	Item	Range	TestValue	Result
                         entry.ExtractToFile(destinationPath, true);
                     }
                 }
-                return Task.CompletedTask;
+                await Task.CompletedTask;
+                return extractPath;
             }
             catch (Exception ex)
             {
@@ -249,14 +266,20 @@ Step	Item	Range	TestValue	Result
             {
                 string Dev = Path.GetFileNameWithoutExtension(filePath);
                 string guidPart = Regex.Match(Dev, @"^[^_]+").Value + "_";
+                //ICT测试数据转为csv
+                //FCT测试数据转为csv 
                 string _newCsvPath = Path.Combine("C:\\TE", "CsvDataPub", guidPart + Type + "ExcelToCsv_数据.csv");
                 if (Type == "FCT")
                 {
-                    return "处理文件成功>" + await  FCTExcelToCsv(filePath, _newCsvPath);
+                    return "处理文件成功>" + await FCTExcelToCsv(filePath, _newCsvPath);
                 }
                 if (Type == "ICT")
                 {
                     return "处理文件成功>" + await ICTExcelToCsv(filePath, _newCsvPath);
+                }
+                else
+                {
+                    return "处理文件失败> 转换类型为：" + Type;
                 }
             }
             catch (Exception ex)
@@ -536,7 +559,7 @@ Step	Item	Range	TestValue	Result
             return _newCsvPath;
         }
 
-
+  
 
         // 处理CSV字段，添加引号以处理包含逗号或特殊字符的情况
         private static string QuoteCsvField(string field)
@@ -553,7 +576,6 @@ Step	Item	Range	TestValue	Result
             return field;
         }
 
-
     }
     public interface IExcelUploadService
     {
@@ -564,10 +586,11 @@ Step	Item	Range	TestValue	Result
         /// <returns>包含上传结果的对象</returns>
         Task<FileUploadResult> SaveExcelFileAsync(IFormFile file);
         Task<string> ReadExcelData2Txt(string filePath);
-        Task UnZipFile(string filePath);
+        Task<string> UnZipFile(string filePath);
 
 
         Task<string> ReadExcelData2Csv(string filePath, string Type);
+     
     }
 
     /// <summary>

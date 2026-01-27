@@ -65,10 +65,10 @@
             transition: all 0.3s ease;
         }
 
-            .upload-area:hover {
-                border-color: #1d5dcb;
-                background-color: #f9fafc;
-            }
+        .upload-area:hover {
+            border-color: #1d5dcb;
+            background-color: #f9fafc;
+        }
 
         .el-upload__icon {
             font-size: 48px !important;
@@ -81,10 +81,10 @@
             margin-top: 16px !important;
         }
 
-            .el-upload__text em {
-                color: #1d5dcb !important;
-                cursor: pointer;
-            }
+        .el-upload__text em {
+            color: #1d5dcb !important;
+            cursor: pointer;
+        }
         /* 上传提示样式 */
         .upload-tip {
             margin-top: 12px;
@@ -135,6 +135,7 @@
             color: #13ce66;
             flex: 1;
         }
+
         /* 响应式适配 */
         @media (max-width: 768px) {
             .mode-switch-wrapper {
@@ -152,38 +153,32 @@
         }
     </style>
 </head>
+
 <body>
     <div id="app">
         <!-- 核心卡片容器：规整内容，提升层次感 -->
         <div class="conversion-card">
             <!-- 1. 模式切换区：明确用途，增加说明 -->
             <div class="mode-switch-wrapper">
-                <span class="mode-desc">
-                    转换模式：
-                    <span class="mode-tag">{{ IsFCT ? 'FCT测试数据' : 'ICT测试数据' }}</span>
+                <span>模式：
                 </span>
-                <el-switch v-model="IsFCT"
-                           inline-prompt
-                           style="--el-switch-on-color: #1d5dcb; --el-switch-off-color: #77ce13; font-weight: 500;"
-                           active-text="FCT"
-                           inactive-text="ICT"></el-switch>
-                <span style="color:red">请确认原始数据的类型(FCT或ICT)，若类型错误可能转换出错!</span>
+                <el-select v-model="ConvertMode" placeholder="请选择转换模式" style="width: 260px; margin-left: 8px;">
+                    <el-option label="ICT测试数据转为csv列表" value="ICT"></el-option>
+                    <el-option label="FCT测试数据转为csv列表" value="FCT"></el-option>
+                    <!-- <el-option label="FCT_MSA(FCT测试数据导入生成MSA)" value="FCT_MSA"></el-option>
+                    <el-option label="FCT_CPK(FCT测试数据导入生成CPK)" value="FCT_CPK"></el-option>
+                    <el-option label="IQC_MSA(IQC测试数据导入生成MSA)" value="IQC_MSA"></el-option>
+                    <el-option label="IQC_CPK(IQC测试数据导入生成CPK)" value="IQC_CPK"></el-option> -->
+                </el-select>
+                </span>
+                <span style="color:red">请确认原始数据的类型以及目标类型，若类型错误可能转换出错!</span>
             </div>
 
             <!-- 2. 文件上传区：优化样式，增加状态反馈 -->
-            <el-upload class="upload-area"
-                       drag
-                       limit="1"
-                       accept=".xlsx"
-                       :on-success="uploadSuccess"
-                       :on-error="uploadError"
-                       :on-remove="handleFileRemove"
-                       :data="({ Type: IsFCT ? 'FCT' : 'ICT' })"
-                       :disabled="isUploading"
-                       :before-upload="beforeUpload"
-                       :action="UrlPath.upload_url"
-                       :multiple="false"
-                       :file-list="uploadedFiles">
+            <el-upload class="upload-area" drag limit="1" accept=".xlsx" :on-success="uploadSuccess"
+                :on-error="uploadError" :on-remove="handleFileRemove" :data="({ Type:ConvertMode  })"
+                :disabled="isUploading" :before-upload="beforeUpload" :action="UrlPath.upload_url" :multiple="false"
+                :file-list="uploadedFiles">
                 <!-- 上传中：显示加载图标，替代静态图标 -->
                 <template #default>
                     <el-icon class="el-upload__icon">
@@ -197,10 +192,8 @@
 
                 <!-- 上传进度：新增进度条，让用户感知处理状态 -->
                 <template #uploading>
-                    <el-progress :percentage="uploadProgress"
-                                 stroke-width="3"
-                                 style="width: 80%; margin: 30px auto 10px;"
-                                 color="#1d5dcb"></el-progress>
+                    <el-progress :percentage="uploadProgress" stroke-width="3"
+                        style="width: 80%; margin: 30px auto 10px;" color="#1d5dcb"></el-progress>
                     <p style="text-align: center; font-size: 13px; color: #606266;">
                         正在处理数据（{{ uploadProgress }}%）...
                     </p>
@@ -218,11 +211,8 @@
                 <template #file="{ file }">
                     <div class="file-item">
                         <span class="file-name">{{ file.name }}</span>
-                        <el-button icon="delete"
-                                   size="mini"
-                                   type="text"
-                                   @click.stop="handleFileRemove(file)"
-                                   style="color: #f56c6c;"></el-button>
+                        <el-button icon="delete" size="mini" type="text" @click.stop="handleFileRemove(file)"
+                            style="color: #f56c6c;"></el-button>
                     </div>
                 </template>
             </el-upload>
@@ -231,10 +221,7 @@
             <div v-if="showSuccessPanel" class="success-panel">
                 <el-icon class="success-icon"><check-circle-filled /></el-icon>
                 <div class="success-text">数据转换完成！可点击按钮下载结果文件</div>
-                <el-button type="primary"
-                           size="small"
-                           @click="handleDownload"
-                           icon="download">
+                <el-button type="primary" size="small" @click="handleDownload" icon="download">
                     下载转换文件
                 </el-button>
             </div>
@@ -263,9 +250,9 @@
                 isUploading: false, // 上传状态
                 uploadProgress: 0, // 上传/处理进度
                 showSuccessPanel: false, // 成功面板显示状态
-                downloadFileUrl: "", // 下载文件地址
-                IsFCT: true, // 转换模式：true=FCT，false=ICT
-                excelAllowedExts: ['xlsx'], // 允许的Excel格式
+                downloadFileUrl: "", // 下载文件地址 
+                ConvertMode: "",
+                excelAllowedExts: ['xlsx','zip'], // 允许的Excel格式
             };
         },
         methods: {
@@ -280,7 +267,7 @@
                 if (!this.excelAllowedExts.includes(fileExt)) {
                     this.$message({
                         type: 'error',
-                        message: '仅支持上传.xlsx格式的Excel文件，请重新选择！',
+                        message: '仅支持上传.xlsx格式的Excel文件或.zip压缩包，请重新选择！',
                         icon: 'warning-filled'
                     });
                     this.isUploading = false;
@@ -384,8 +371,7 @@
                 if (!this.downloadFileUrl) return;
                 // 创建临时a标签触发下载
                 const link = document.createElement('a');
-                link.href = this.downloadFileUrl;
-                //link.download = `转换结果_${this.IsFCT ? 'FCT' : 'ICT'}_${dayjs().format('YYYYMMDDHHmmss')}.csv`; // 自定义文件名
+                link.href = this.downloadFileUrl; 
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
