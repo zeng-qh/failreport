@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <script src="./Static/js/vue.global.js"></script>
+    <script src="./Static/js/vue-easytable.js"></script>
+    <script src="./Static/js/vue-easytable-zh-CN.js"></script>
+    <link rel="stylesheet" href="./Static/css/theme-default.css">
+    <link rel="stylesheet" href="./Static/css/index.css">
+    <link rel="stylesheet" href="./Static/css/element.css">
+    <script src="./Static/js/index.full@2.7.0.js"></script> 
+    <script src="./Static/js/echarts.min.js"></script>
+    <script src="./Static/js/echarts-wordcloud.min.js"></script>
+
+
+</head>
+
+<body>
+    {{#set($layout = "layouts/layout.html")}}
+    {{> $layout}}
+    {{message}}
+</body>
+<script>
+    // 创建 Vue 应用实例
+    const { createApp } = Vue;
+    const app = createApp({
+        data() {
+            return {
+                message: 'Hello Vue 3!'
+            }
+        }
+    });
+
+    // 使用 Element Plus
+    app.use(ElementPlus);
+
+   
+    // --- 注册结束 ---
+
+    // 挂载应用
+    app.mount('#app');
+</script>
+
+</body>
+
+</html>
+
+</html>
